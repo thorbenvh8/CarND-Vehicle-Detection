@@ -1,3 +1,4 @@
 .DS_Store
 vehicles/
 non-vehicles/
+__pycache__/
