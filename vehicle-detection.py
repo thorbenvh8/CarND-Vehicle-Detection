@@ -8,6 +8,9 @@ from scipy.ndimage.measurements import label
 import numpy as np
 from car import Car
 
+COUNT_FRAMES_DELETE_CARS = 5
+COUNT_FRAMES_DRAW_CAR = 10
+
 COLORS=[(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0), (255, 0, 255), (0, 255, 255), (255, 255, 255)]
 VIDEO_FILENAME = "test_video"
 VIDEO_FILENAME = "project_video"
@@ -56,10 +59,8 @@ def get_heat_windows(windows_pixels, x_indices, y_indices):
             x2, y2 = get_heat_windows_rec(windows_pixels, x1, y1)
             #((x1, y1), (x2, y2))
             if x2 - x1 > 15 and y2 - y1 > 15:
-                print("x: {}, y:{}".format(x2-x1, y2-y1))
                 windows.append(((y1,x1),(y2,x2)))
 
-    print("Windows:",len(windows))
     sorted(windows, key=sort_windows)
 
     margin = 15
@@ -71,7 +72,6 @@ def get_heat_windows(windows_pixels, x_indices, y_indices):
         w1_left = w1[0][1]
         w1_right = w1[1][1]
         w1_bottom = w1[1][0]
-        print("i: {}, top: {}, left: {}, bottom: {}, right: {}".format(i, w1_top, w1_left, w1_bottom, w1_right))
         j = 0
         while j < len(windows):
             if i == j:
@@ -82,26 +82,16 @@ def get_heat_windows(windows_pixels, x_indices, y_indices):
             w2_left = w2[0][1]
             w2_bottom = w2[1][0]
             w2_right = w2[1][1]
-            print("j: {}, top: {}, left: {}, bottom: {}, right: {}".format(j, w2_top, w2_left, w2_bottom, w2_right))
             if w1_left <= w2_left and w1_right + margin >= w2_left and range_overlap(w2_top, w2_bottom, w1_top, w1_bottom):
-                print("blub1")
                 windows[i] = ((min(w1_top, w2_top), min(w1_left, w2_left)), (max(w1_bottom, w2_bottom), max(w1_right, w2_right)))
                 del windows[j]
                 check_again = True
                 break
             if w1_top <= w2_top and w1_bottom + margin >= w2_top and range_overlap(w2_left, w2_right, w1_left, w1_right):
-                print("blub2")
                 windows[i] = ((min(w1_top, w2_top), min(w1_left, w2_left)), (max(w1_bottom, w2_bottom), max(w1_right, w2_right)))
                 del windows[j]
                 check_again = True
                 break
-            # overlapping left bottom corner
-            #if w_y1-margin <= w_c_y1 and w_c_y1 <= w_y2+margin and w_x1-margin <= w_c_x2 and w_c_x2 <= w_x2+margin:
-                #print(window)
-                #print(((w_y1, w_x1), (w_y2, w_x2)))
-                #windows[i] = ((w_c_y1, w_x1), (w_y2, w_c_x2))
-                #w_y1 = w_c_y1
-                #w_x2 = w_c_x2
             j += 1
         if check_again:
             check_again = False
@@ -123,12 +113,6 @@ def get_heat_windows_rec(windows_pixels, x, y):
     #if windows_pixels[x][y+1] == 1:
     #    x_resulty, y_resulty = get_windows_rec(windows_pixels, x, y+1)
     return x_resultx, y_resultx
-
-def get_vehicle_windows(heatmap, heat_windows):
-    vehicle_windows = []
-    #for window in heat_windows:
-
-    return vehicle_windows
 
 def generate_heatmap(frame, windows, threshold):
     heatmap = np.zeros_like(frame)
@@ -163,24 +147,7 @@ def generate_heatmap(frame, windows, threshold):
 
     return np.array(heatmap, dtype=np.uint8), heat_windows
 
-def draw_labeled_bboxes(img, labels):
-    img = np.copy(img)
-    # Iterate through all detected cars
-    for car_number in range(1, labels[1]+1):
-        # Find pixels with each car_number label value
-        nonzero = (labels[0] == car_number).nonzero()
-        # Identify x and y values of those pixels
-        nonzeroy = np.array(nonzero[0])
-        nonzerox = np.array(nonzero[1])
-        # Define a bounding box based on min/max x and y
-        if 1.5*(np.max(nonzerox)-np.min(nonzerox))<(np.max(nonzeroy)-np.min(nonzeroy)):continue
-        bbox = ((np.min(nonzerox), np.min(nonzeroy)), (np.max(nonzerox), np.max(nonzeroy)))
-        # Draw the box on the image
-        cv2.rectangle(img, bbox[0], bbox[1], (0,0,255), 6)
-    # Return the image
-    return img
-
-def detect_vehicles(svc, frames, windows_list, orient, pix_per_cell, cell_per_block):
+def detect_vehicles(svc, frames, windows_list, orient, pix_per_cell, cell_per_block, cspace, spatial_size, hist_bins, hist_range):
     enhanced_frames = []
     len_frames = len(frames)
     util.printProgressBar(0, len_frames, 'Detecting vehicles')
@@ -200,20 +167,14 @@ def detect_vehicles(svc, frames, windows_list, orient, pix_per_cell, cell_per_bl
                 diffxy = min(diffx, diffy)
                 window_frame = frame[starty:starty+diffxy,startx:startx+diffxy]
                 window_frame_resize = cv2.resize(window_frame, (64,64))
-                window_frame_resize_features = features.get_features(window_frame_resize, orient=orient, pix_per_cell=pix_per_cell, cell_per_block=cell_per_block, gray_convert=cv2.COLOR_RGB2GRAY)
+                window_frame_resize_features = features.get_features(window_frame_resize, orient=orient, pix_per_cell=pix_per_cell, cell_per_block=cell_per_block, cspace=cspace, spatial_size=spatial_size, hist_bins=hist_bins, hist_range=hist_range)
                 predictions = svc.predict([window_frame_resize_features])
                 for prediction in predictions:
                     if prediction == 1:
                         vehicle_windows.append(window)
-            #frame = lessons.draw_boxes(frame, windows_list[j], color=COLORS[j%len(COLORS)], thick=1)
-
-
-
 
         threshold = 1
         heatmap, heat_windows = generate_heatmap(frame, vehicle_windows, threshold)
-        frame = cv2.addWeighted(frame, 1, heatmap, 1, 0)
-        #frame = lessons.draw_boxes(frame, vehicle_windows, color=(0, 0, 255), thick=3)
 
         for car in cars:
             car.not_found_count += 1
@@ -230,9 +191,9 @@ def detect_vehicles(svc, frames, windows_list, orient, pix_per_cell, cell_per_bl
             car_exists = False
             for car in cars:
                 if car.is_fit(center):
-                    print("IS_FIT!!!!!")
                     car.add_center(center)
-                    veh_windows.append(car.avg_window)
+                    if car.found_count >= COUNT_FRAMES_DRAW_CAR:
+                        veh_windows.append(car.avg_window)
                     car_exists = True
                     break
 
@@ -240,31 +201,21 @@ def detect_vehicles(svc, frames, windows_list, orient, pix_per_cell, cell_per_bl
                 car = Car()
                 cars.append(car)
                 car.add_center(center)
-                veh_windows.append(car.avg_window)
 
         for car in cars:
-            if car.not_found_count >= 5:
+            if car.not_found_count >= COUNT_FRAMES_DELETE_CARS:
                 cars.remove(car)
 
-        print("Cars:", len(cars))
-
         frame = lessons.draw_boxes(frame, veh_windows, color=(0, 0, 255), thick=3)
-
-        #plt.imshow(heatmap, cmap='gray')
-        #plt.title('Heatmap')
-        #plt.show()
-        #labels = label(heatmap)
-        #draw_img = draw_labeled_bboxes(frame, labels)
-
 
         enhanced_frames.append(frame)
         util.printProgressBar(i+1, len_frames, 'Detecting vehicles')
     return enhanced_frames
 
-svc, orient, pix_per_cell, cell_per_block = load_model()
-frames, fps = load_frames(VIDEO_FILENAME + ".mp4", start_frame=25*23, end_frame=25*25)
+svc, orient, pix_per_cell, cell_per_block, cspace, spatial_size, hist_bins, hist_range = load_model()
+frames, fps = load_frames(VIDEO_FILENAME + ".mp4")#, start_frame=25*23, end_frame=25*25)
 
 windows_list = generate_windows_list(n=10, size_start=16, size_end=213, overlap_start=0.5, overlap_end=0.8, y_start=416, y_end=380)
-enhanced_frames = detect_vehicles(svc, frames, windows_list, orient, pix_per_cell, cell_per_block)
+enhanced_frames = detect_vehicles(svc, frames, windows_list, orient, pix_per_cell, cell_per_block, cspace, spatial_size, hist_bins, hist_range)
 
 save_frames(enhanced_frames, fps, VIDEO_FILENAME + "_output.mp4")

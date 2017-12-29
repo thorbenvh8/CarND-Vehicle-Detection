@@ -14,7 +14,7 @@ class Car():
         #n iterations
         self.n = 10
 
-        self.fit_margin = 60
+        self.fit_margin = 30
 
         self.found_count = 0
 

@@ -4,7 +4,7 @@ from moviepy.editor import VideoFileClip
 
 MODEL_PICKLE_FILENAME = 'Model.p'
 
-def save_model(svc, orient, pix_per_cell, cell_per_block):
+def save_model(svc, orient, pix_per_cell, cell_per_block, cspace, spatial_size, hist_bins, hist_range):
     print('Saving model to pickle file...')
     try:
         with open(MODEL_PICKLE_FILENAME, 'wb') as pfile:
@@ -14,6 +14,10 @@ def save_model(svc, orient, pix_per_cell, cell_per_block):
                     'orient': orient,
                     'pix_per_cell': pix_per_cell,
                     'cell_per_block': cell_per_block,
+                    'cspace': cspace,
+                    'spatial_size': spatial_size,
+                    'hist_bins': hist_bins,
+                    'hist_range': hist_range
                 },
                 pfile, pickle.HIGHEST_PROTOCOL)
     except Exception as e:
@@ -30,10 +34,14 @@ def load_model():
     svc = data['svc']
     orient = data['orient']
     pix_per_cell = data['pix_per_cell']
-    cell_per_block = data ['cell_per_block']
+    cell_per_block = data['cell_per_block']
+    cspace=data['cspace']
+    spatial_size=data['spatial_size']
+    hist_bins=data['hist_bins']
+    hist_range=data['hist_range']
 
     print('Loaded model')
-    return svc, orient, pix_per_cell, cell_per_block
+    return svc, orient, pix_per_cell, cell_per_block, cspace, spatial_size, hist_bins, hist_range
 
 def load_frames(video_path = "project_video.mp4", start_frame = None, end_frame = None):
     # The file referenced in clip1 is the original video before anything has been done to it
